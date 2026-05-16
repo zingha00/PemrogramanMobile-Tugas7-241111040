@@ -1,0 +1,56 @@
+package com.utama.aplikasiloginsederhana
+
+import android.os.Bundle
+import androidx.fragment.app.Fragment
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import com.utama.aplikasiloginsederhana.databinding.FragmentHomeBinding
+
+class HomeFragment : Fragment() {
+
+    private var _binding: FragmentHomeBinding? = null
+    private val binding get() = _binding!!
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentHomeBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // Ambil username dari intent HomeActivity
+        val username = activity?.intent?.getStringExtra("username") ?: "User"
+        binding.tvUsername.text = username
+
+        // Set data event
+        binding.tvUpcomingEvent.text = "Seminar Teknologi AI"
+        binding.tvUpcomingDate.text = "10 April 2026 - Gedung Serba Guna"
+
+        // Navigasi card Event ke EventFragment
+        binding.cardEvent.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, EventFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+
+        // Navigasi card Tiket ke TicketFragment
+        binding.cardTicket.setOnClickListener {
+            parentFragmentManager.beginTransaction()
+                .replace(R.id.fragmentContainer, TicketFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
