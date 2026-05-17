@@ -5,12 +5,18 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.utama.aplikasiloginsederhana.databinding.FragmentEventBinding
 
 class EventFragment : Fragment() {
 
     private var _binding: FragmentEventBinding? = null
     private val binding get() = _binding!!
+    private lateinit var repository: EventRepository
+    private lateinit var adapter: EventAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -23,7 +29,88 @@ class EventFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        // Data sudah di-set langsung di XML
+
+        repository = EventRepository(requireContext())
+        binding.rvEvents.layoutManager = LinearLayoutManager(requireContext())
+        loadEvents()
+
+        binding.fabAddEvent.setOnClickListener {
+            showAddEventDialog()
+        }
+    }
+
+    private fun loadEvents() {
+        val events = repository.getAllEvents()
+        adapter = EventAdapter(events) { event ->
+            showEventDetailDialog(event)
+        }
+        binding.rvEvents.adapter = adapter
+    }
+
+    private fun showEventDetailDialog(event: Event) {
+        AlertDialog.Builder(requireContext())
+            .setTitle(event.name)
+            .setMessage(
+                "Tanggal  : ${event.date}\n" +
+                        "Lokasi   : ${event.location}\n" +
+                        "Harga    : ${event.getFormattedPrice()}"
+            )
+            .setPositiveButton("Daftar") { _, _ ->
+                repository.setRegistered(event.id, true)
+                Toast.makeText(requireContext(),
+                    "Berhasil mendaftar: ${event.name}",
+                    Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Hapus Event") { _, _ ->
+                repository.deleteEvent(event.id)
+                loadEvents()
+                Toast.makeText(requireContext(),
+                    "Event dihapus",
+                    Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("Tutup", null)
+            .show()
+    }
+
+    private fun showAddEventDialog() {
+        val dialogView = LayoutInflater.from(requireContext())
+            .inflate(R.layout.dialog_add_event, null)
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Tambah Event Baru")
+            .setView(dialogView)
+            .setPositiveButton("Simpan") { _, _ ->
+                val name = dialogView.findViewById<EditText>(R.id.etEventName)
+                    .text.toString().trim()
+                val date = dialogView.findViewById<EditText>(R.id.etEventDate)
+                    .text.toString().trim()
+                val location = dialogView.findViewById<EditText>(R.id.etEventLocation)
+                    .text.toString().trim()
+                val priceStr = dialogView.findViewById<EditText>(R.id.etEventPrice)
+                    .text.toString().trim()
+
+                if (name.isEmpty() || date.isEmpty() || location.isEmpty()) {
+                    Toast.makeText(requireContext(),
+                        "Nama, tanggal, dan lokasi wajib diisi!",
+                        Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+
+                val newEvent = Event(
+                    id = 0,
+                    name = name,
+                    date = date,
+                    location = location,
+                    price = priceStr.toIntOrNull() ?: 0
+                )
+                repository.addEvent(newEvent)
+                loadEvents()
+                Toast.makeText(requireContext(),
+                    "Event berhasil ditambahkan!",
+                    Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Batal", null)
+            .show()
     }
 
     override fun onDestroyView() {

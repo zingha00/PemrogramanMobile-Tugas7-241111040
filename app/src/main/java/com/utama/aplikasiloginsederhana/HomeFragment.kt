@@ -24,8 +24,9 @@ class HomeFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Ambil username dari intent HomeActivity
-        val username = activity?.intent?.getStringExtra("username") ?: "User"
+        // Ambil username dari SessionManager
+        val sessionManager = SessionManager(requireContext())
+        val username = sessionManager.getUsername()
         binding.tvUsername.text = username
 
         // Set data event
