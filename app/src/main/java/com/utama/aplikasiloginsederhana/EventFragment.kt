@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.utama.aplikasiloginsederhana.databinding.FragmentEventBinding
 
@@ -15,8 +16,7 @@ class EventFragment : Fragment() {
 
     private var _binding: FragmentEventBinding? = null
     private val binding get() = _binding!!
-    private lateinit var repository: EventRepository
-    private lateinit var adapter: EventAdapter
+    private lateinit var viewModel: EventViewModel
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -30,21 +30,37 @@ class EventFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        repository = EventRepository(requireContext())
+        // Setup ViewModel
+        val repository = EventRepository(requireContext())
+        val factory = EventViewModelFactory(repository)
+        viewModel = ViewModelProvider(this, factory)[EventViewModel::class.java]
+
         binding.rvEvents.layoutManager = LinearLayoutManager(requireContext())
-        loadEvents()
+
+        // Observasi data event
+        viewModel.events.observe(viewLifecycleOwner) { eventList ->
+            val adapter = EventAdapter(eventList) { event ->
+                showEventDetailDialog(event)
+            }
+            binding.rvEvents.adapter = adapter
+        }
+
+        // Observasi loading
+        viewModel.isLoading.observe(viewLifecycleOwner) { loading ->
+            binding.progressBar.visibility =
+                if (loading) View.VISIBLE else View.GONE
+        }
+
+        // Observasi error
+        viewModel.errorMessage.observe(viewLifecycleOwner) { msg ->
+            msg?.let {
+                Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
+            }
+        }
 
         binding.fabAddEvent.setOnClickListener {
             showAddEventDialog()
         }
-    }
-
-    private fun loadEvents() {
-        val events = repository.getAllEvents()
-        adapter = EventAdapter(events) { event ->
-            showEventDetailDialog(event)
-        }
-        binding.rvEvents.adapter = adapter
     }
 
     private fun showEventDetailDialog(event: Event) {
@@ -56,14 +72,13 @@ class EventFragment : Fragment() {
                         "Harga    : ${event.getFormattedPrice()}"
             )
             .setPositiveButton("Daftar") { _, _ ->
-                repository.setRegistered(event.id, true)
+                viewModel.registerEvent(event.id)
                 Toast.makeText(requireContext(),
                     "Berhasil mendaftar: ${event.name}",
                     Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Hapus Event") { _, _ ->
-                repository.deleteEvent(event.id)
-                loadEvents()
+            .setNegativeButton("Hapus") { _, _ ->
+                viewModel.deleteEvent(event.id)
                 Toast.makeText(requireContext(),
                     "Event dihapus",
                     Toast.LENGTH_SHORT).show()
@@ -86,25 +101,17 @@ class EventFragment : Fragment() {
                     .text.toString().trim()
                 val location = dialogView.findViewById<EditText>(R.id.etEventLocation)
                     .text.toString().trim()
-                val priceStr = dialogView.findViewById<EditText>(R.id.etEventPrice)
-                    .text.toString().trim()
+                val price = dialogView.findViewById<EditText>(R.id.etEventPrice)
+                    .text.toString().toIntOrNull() ?: 0
 
                 if (name.isEmpty() || date.isEmpty() || location.isEmpty()) {
                     Toast.makeText(requireContext(),
-                        "Nama, tanggal, dan lokasi wajib diisi!",
+                        "Isi semua field wajib!",
                         Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
 
-                val newEvent = Event(
-                    id = 0,
-                    name = name,
-                    date = date,
-                    location = location,
-                    price = priceStr.toIntOrNull() ?: 0
-                )
-                repository.addEvent(newEvent)
-                loadEvents()
+                viewModel.addEvent(Event(0, name, date, location, price))
                 Toast.makeText(requireContext(),
                     "Event berhasil ditambahkan!",
                     Toast.LENGTH_SHORT).show()
