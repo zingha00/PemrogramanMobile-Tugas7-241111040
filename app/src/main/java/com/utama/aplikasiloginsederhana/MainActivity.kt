@@ -6,6 +6,8 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -17,7 +19,6 @@ class MainActivity : AppCompatActivity() {
 
         sessionManager = SessionManager(this)
 
-        // Cek jika sudah login, langsung ke HomeActivity
         if (sessionManager.isLoggedIn()) {
             startActivity(Intent(this, HomeActivity::class.java))
             finish()
@@ -34,13 +35,40 @@ class MainActivity : AppCompatActivity() {
             val password = etPassword.text.toString().trim()
 
             if (username.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "Username dan Password tidak boleh kosong!", Toast.LENGTH_SHORT).show()
-            } else {
-                sessionManager.saveLoginSession(username)
-                Toast.makeText(this, "Login berhasil!", Toast.LENGTH_SHORT).show()
-                val intent = Intent(this, HomeActivity::class.java)
-                startActivity(intent)
-                finish()
+                Toast.makeText(this,
+                    "Username dan Password tidak boleh kosong!",
+                    Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            lifecycleScope.launch {
+                try {
+                    val response = RetrofitClient.apiService.login(
+                        action = "login",
+                        request = LoginRequest(username, password)
+                    )
+                    if (response.isSuccessful && response.body()?.success == true) {
+                        val user = response.body()?.data
+                        sessionManager.saveLoginSession(username, user?.id ?: 0)
+                        Toast.makeText(this@MainActivity,
+                            "Login berhasil!",
+                            Toast.LENGTH_SHORT).show()
+                        startActivity(Intent(this@MainActivity, HomeActivity::class.java))
+                        finish()
+                    } else {
+                        Toast.makeText(this@MainActivity,
+                            response.body()?.message ?: "Username atau password salah!",
+                            Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    // Offline fallback
+                    sessionManager.saveLoginSession(username, 0)
+                    Toast.makeText(this@MainActivity,
+                        "Login berhasil (offline)!",
+                        Toast.LENGTH_SHORT).show()
+                    startActivity(Intent(this@MainActivity, HomeActivity::class.java))
+                    finish()
+                }
             }
         }
 

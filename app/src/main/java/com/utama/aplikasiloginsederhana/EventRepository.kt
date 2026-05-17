@@ -7,22 +7,23 @@ import com.utama.aplikasiloginsederhana.EventDatabaseHelper as DBH
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class EventRepository(context: Context) {
+class EventRepository(private val context: Context) {
     private val localDb = DBH(context)
     private val remoteRepo = RemoteEventRepository()
 
-    // ── READ: Offline-first ──────────────────────────────────────
+    // ── READ: Ambil dari API lalu simpan ke Lokal ────────────────
     suspend fun getAllEvents(): List<Event> = withContext(Dispatchers.IO) {
         try {
             val remoteEvents = remoteRepo.getAllEvents()
             syncLocalDatabase(remoteEvents)
             remoteEvents
         } catch (e: Exception) {
+            e.printStackTrace()
             getLocalEvents()
         }
     }
 
-    // ── Sync API ke SQLite lokal ─────────────────────────────────
+    // ── Sinkronisasi ke SQLite ───────────────────────────────────
     private fun syncLocalDatabase(events: List<Event>) {
         val db = localDb.writableDatabase
         db.delete(DBH.TABLE_EVENTS, null, null)
@@ -33,6 +34,8 @@ class EventRepository(context: Context) {
                 put(DBH.COL_DATE, event.date)
                 put(DBH.COL_LOCATION, event.location)
                 put(DBH.COL_PRICE, event.price)
+                put(DBH.COL_DESCRIPTION, event.description)
+                put(DBH.COL_REGISTERED, if (event.isRegistered) 1 else 0)
             }
             db.insertWithOnConflict(
                 DBH.TABLE_EVENTS, null, cv,
@@ -56,28 +59,38 @@ class EventRepository(context: Context) {
                     name = it.getString(it.getColumnIndexOrThrow(DBH.COL_NAME)),
                     date = it.getString(it.getColumnIndexOrThrow(DBH.COL_DATE)),
                     location = it.getString(it.getColumnIndexOrThrow(DBH.COL_LOCATION)),
-                    price = it.getInt(it.getColumnIndexOrThrow(DBH.COL_PRICE))
+                    price = it.getInt(it.getColumnIndexOrThrow(DBH.COL_PRICE)),
+                    description = it.getString(it.getColumnIndexOrThrow(DBH.COL_DESCRIPTION)) ?: "",
+                    isRegistered = it.getInt(it.getColumnIndexOrThrow(DBH.COL_REGISTERED)) == 1
                 ))
             }
         }
         return events
     }
 
-    // ── CREATE ───────────────────────────────────────────────────
-    suspend fun addEvent(event: Event): Long = withContext(Dispatchers.IO) {
-        try { remoteRepo.addEvent(event) } catch (_: Exception) {}
+    // ── CREATE: Simpan ke MySQL lalu sinkron ke Lokal ────────────
+    suspend fun addEvent(event: Event) = withContext(Dispatchers.IO) {
+        // 1. Simpan ke MySQL (Jika gagal, throw Exception ke ViewModel)
+        val remoteId = remoteRepo.addEvent(event)
+        
+        // 2. Simpan ke SQLite hanya jika MySQL sukses
         val cv = ContentValues().apply {
+            put(DBH.COL_ID, remoteId)
             put(DBH.COL_NAME, event.name)
             put(DBH.COL_DATE, event.date)
             put(DBH.COL_LOCATION, event.location)
             put(DBH.COL_PRICE, event.price)
+            put(DBH.COL_DESCRIPTION, event.description)
         }
-        localDb.writableDatabase.insert(DBH.TABLE_EVENTS, null, cv)
+        localDb.writableDatabase.insertWithOnConflict(
+            DBH.TABLE_EVENTS, null, cv,
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
     }
 
-    // ── DELETE ───────────────────────────────────────────────────
-    suspend fun deleteEvent(id: Int): Int = withContext(Dispatchers.IO) {
-        try { remoteRepo.deleteEvent(id) } catch (_: Exception) {}
+    // ── DELETE: Hapus di MySQL lalu di Lokal ─────────────────────
+    suspend fun deleteEvent(id: Int) = withContext(Dispatchers.IO) {
+        remoteRepo.deleteEvent(id)
         localDb.writableDatabase.delete(
             DBH.TABLE_EVENTS,
             "${DBH.COL_ID} = ?",
@@ -85,9 +98,19 @@ class EventRepository(context: Context) {
         )
     }
 
-    // ── SET REGISTERED ───────────────────────────────────────────
-    suspend fun setRegistered(id: Int, isRegistered: Boolean): Int =
+    // ── REGISTER: Daftar via API lalu update Lokal ───────────────
+    suspend fun setRegistered(id: Int, isRegistered: Boolean) =
         withContext(Dispatchers.IO) {
+            if (isRegistered) {
+                val sessionManager = SessionManager(context)
+                val userId = sessionManager.getUserId()
+                if (userId > 0) {
+                    remoteRepo.registerEvent(userId, id)
+                } else {
+                    throw Exception("Silakan login terlebih dahulu")
+                }
+            }
+
             val cv = ContentValues().apply {
                 put(DBH.COL_REGISTERED, if (isRegistered) 1 else 0)
             }

@@ -31,6 +31,12 @@ interface ApiService {
         @Query("id") id: Int
     ): Response<ApiResponse<Unit>>
 
+    // POST daftar event
+    @POST("registrations.php")
+    suspend fun registerEvent(
+        @Body body: Map<String, Int>
+    ): Response<ApiResponse<Map<String, Int>>>
+
     // ── AUTH ENDPOINTS ──────────────────────────────────────────
 
     @POST("auth.php")

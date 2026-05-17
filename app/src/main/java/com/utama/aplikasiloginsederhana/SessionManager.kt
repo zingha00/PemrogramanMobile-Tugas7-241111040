@@ -11,12 +11,14 @@ class SessionManager(context: Context) {
         private const val PREF_NAME = "EventAppSession"
         private const val KEY_IS_LOGIN = "isLogin"
         private const val KEY_USERNAME = "username"
+        private const val KEY_USER_ID = "userId"
     }
 
-    fun saveLoginSession(username: String) {
+    fun saveLoginSession(username: String, userId: Int = 0) {
         prefs.edit().apply {
             putBoolean(KEY_IS_LOGIN, true)
             putString(KEY_USERNAME, username)
+            putInt(KEY_USER_ID, userId)
             apply()
         }
     }
@@ -24,6 +26,8 @@ class SessionManager(context: Context) {
     fun isLoggedIn(): Boolean = prefs.getBoolean(KEY_IS_LOGIN, false)
 
     fun getUsername(): String = prefs.getString(KEY_USERNAME, "-") ?: "-"
+
+    fun getUserId(): Int = prefs.getInt(KEY_USER_ID, 0)
 
     fun clearSession() {
         prefs.edit().clear().apply()

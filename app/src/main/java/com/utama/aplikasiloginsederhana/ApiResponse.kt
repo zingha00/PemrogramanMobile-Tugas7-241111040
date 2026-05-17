@@ -21,7 +21,8 @@ data class EventApiModel(
         name = name,
         date = date,
         location = location,
-        price = price
+        price = price,
+        description = description ?: ""
     )
 }
 

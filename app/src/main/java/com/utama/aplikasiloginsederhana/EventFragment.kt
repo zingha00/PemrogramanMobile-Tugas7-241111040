@@ -30,14 +30,12 @@ class EventFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Setup ViewModel
         val repository = EventRepository(requireContext())
         val factory = EventViewModelFactory(repository)
         viewModel = ViewModelProvider(this, factory)[EventViewModel::class.java]
 
         binding.rvEvents.layoutManager = LinearLayoutManager(requireContext())
 
-        // Observasi data event
         viewModel.events.observe(viewLifecycleOwner) { eventList ->
             val adapter = EventAdapter(eventList) { event ->
                 showEventDetailDialog(event)
@@ -45,13 +43,10 @@ class EventFragment : Fragment() {
             binding.rvEvents.adapter = adapter
         }
 
-        // Observasi loading
         viewModel.isLoading.observe(viewLifecycleOwner) { loading ->
-            binding.progressBar.visibility =
-                if (loading) View.VISIBLE else View.GONE
+            binding.progressBar.visibility = if (loading) View.VISIBLE else View.GONE
         }
 
-        // Observasi error
         viewModel.errorMessage.observe(viewLifecycleOwner) { msg ->
             msg?.let {
                 Toast.makeText(requireContext(), it, Toast.LENGTH_LONG).show()
@@ -68,20 +63,16 @@ class EventFragment : Fragment() {
             .setTitle(event.name)
             .setMessage(
                 "Tanggal  : ${event.date}\n" +
-                        "Lokasi   : ${event.location}\n" +
-                        "Harga    : ${event.getFormattedPrice()}"
+                "Lokasi   : ${event.location}\n" +
+                "Harga    : ${event.getFormattedPrice()}\n" +
+                "Deskripsi: ${event.description}"
             )
             .setPositiveButton("Daftar") { _, _ ->
                 viewModel.registerEvent(event.id)
-                Toast.makeText(requireContext(),
-                    "Berhasil mendaftar: ${event.name}",
-                    Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Mencoba mendaftar...", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Hapus") { _, _ ->
                 viewModel.deleteEvent(event.id)
-                Toast.makeText(requireContext(),
-                    "Event dihapus",
-                    Toast.LENGTH_SHORT).show()
             }
             .setNeutralButton("Tutup", null)
             .show()
@@ -95,26 +86,28 @@ class EventFragment : Fragment() {
             .setTitle("Tambah Event Baru")
             .setView(dialogView)
             .setPositiveButton("Simpan") { _, _ ->
-                val name = dialogView.findViewById<EditText>(R.id.etEventName)
-                    .text.toString().trim()
-                val date = dialogView.findViewById<EditText>(R.id.etEventDate)
-                    .text.toString().trim()
-                val location = dialogView.findViewById<EditText>(R.id.etEventLocation)
-                    .text.toString().trim()
-                val price = dialogView.findViewById<EditText>(R.id.etEventPrice)
-                    .text.toString().toIntOrNull() ?: 0
+                val name = dialogView.findViewById<EditText>(R.id.etEventName).text.toString().trim()
+                val date = dialogView.findViewById<EditText>(R.id.etEventDate).text.toString().trim()
+                val location = dialogView.findViewById<EditText>(R.id.etEventLocation).text.toString().trim()
+                val price = dialogView.findViewById<EditText>(R.id.etEventPrice).text.toString().toIntOrNull() ?: 0
+                // Pastikan deskripsi diambil dari EditText jika ada, jika tidak gunakan default ""
+                val description = dialogView.findViewById<EditText>(R.id.etEventDescription)?.text?.toString()?.trim() ?: ""
 
                 if (name.isEmpty() || date.isEmpty() || location.isEmpty()) {
-                    Toast.makeText(requireContext(),
-                        "Isi semua field wajib!",
-                        Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "Field utama wajib diisi!", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
 
-                viewModel.addEvent(Event(0, name, date, location, price))
-                Toast.makeText(requireContext(),
-                    "Event berhasil ditambahkan!",
-                    Toast.LENGTH_SHORT).show()
+                val newEvent = Event(
+                    id = 0,
+                    name = name,
+                    date = date,
+                    location = location,
+                    price = price,
+                    description = description
+                )
+                viewModel.addEvent(newEvent)
+                Toast.makeText(requireContext(), "Menyimpan event...", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Batal", null)
             .show()
